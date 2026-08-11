@@ -6,16 +6,71 @@
  */
 
 /**
- * Minify HTML by collapsing whitespace between tags and trimming.
+ * Split HTML into raw token strings using a linear state machine.
+ * Handles text nodes, comments (ending with --> or --!>), and tags.
+ * @param {string} html
+ * @returns {string[]}
+ */
+function tokenizeRaw(html) {
+  const tokens = [];
+  let i = 0;
+
+  while (i < html.length) {
+    if (html[i] !== '<') {
+      // Text node — read until the next '<'
+      let j = i + 1;
+      while (j < html.length && html[j] !== '<') j++;
+      tokens.push(html.slice(i, j));
+      i = j;
+    } else if (html.startsWith('<!--', i)) {
+      // HTML comment — scan for --> or --!>
+      let j = i + 4;
+      let closed = false;
+      while (j < html.length) {
+        if (html[j] === '-' && html[j + 1] === '-') {
+          if (html[j + 2] === '>') {
+            j += 3;
+            closed = true;
+            break;
+          }
+          if (html[j + 2] === '!' && html[j + 3] === '>') {
+            j += 4;
+            closed = true;
+            break;
+          }
+        }
+        j++;
+      }
+      if (!closed) j = html.length;
+      tokens.push(html.slice(i, j));
+      i = j;
+    } else {
+      // Regular tag — read until '>'
+      let j = i + 1;
+      while (j < html.length && html[j] !== '>') j++;
+      if (j < html.length) j++; // include '>'
+      tokens.push(html.slice(i, j));
+      i = j;
+    }
+  }
+
+  return tokens;
+}
+
+/**
+ * Minify HTML by removing newlines and collapsing whitespace between tags.
  * @param {string} html
  * @returns {string}
  */
 function minify(html) {
   if (typeof html !== 'string') throw new TypeError('html must be a string');
-  return html
-    .replace(/[ \t]*\n[ \t]*/g, '')
-    .replace(/>[ \t]+</g, '><')
-    .trim();
+  // Remove newlines, then collapse spaces/tabs between tags
+  let result = '';
+  for (let i = 0; i < html.length; i++) {
+    if (html[i] !== '\n') result += html[i];
+  }
+  // Collapse whitespace between > and <
+  return result.replace(/>([ \t]+)</g, '><').trim();
 }
 
 /**
@@ -30,17 +85,13 @@ function format(html, options = {}) {
   const indent = options.indent !== undefined ? options.indent : 2;
   const pad = ' '.repeat(indent);
 
-  // Void elements that should not be indented inside
+  // Void elements that should not increase indent level
   const voidElements = new Set([
     'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input',
     'link', 'meta', 'param', 'source', 'track', 'wbr',
   ]);
 
-  // Split into tokens: comments, closing tags, any other tags, or text runs
-  // Note: we match all tags as <[^>]*> and infer type from the matched string
-  const tokenRe = /(<!--[\s\S]*?--!?>|<\/[a-zA-Z][^>]*>|<[^>]*>|[^<]+)/g;
-  const tokens = html.match(tokenRe) || [];
-
+  const tokens = tokenizeRaw(html);
   let level = 0;
   const lines = [];
 
@@ -48,18 +99,19 @@ function format(html, options = {}) {
     const trimmed = token.trim();
     if (!trimmed) continue;
 
-    if (/^<!--/.test(trimmed)) {
+    if (trimmed.startsWith('<!--')) {
       // Comment
       lines.push(pad.repeat(level) + trimmed);
-    } else if (/^<\//.test(trimmed)) {
+    } else if (trimmed.startsWith('</')) {
       // Closing tag
       level = Math.max(0, level - 1);
       lines.push(pad.repeat(level) + trimmed);
-    } else if (/^<[^/]/.test(trimmed)) {
-      // Opening tag
+    } else if (trimmed.startsWith('<')) {
+      // Opening or self-closing tag
       lines.push(pad.repeat(level) + trimmed);
-      const tagName = (trimmed.match(/^<([a-zA-Z][a-zA-Z0-9:-]*)/) || [])[1];
-      const isSelfClosing = /\/>$/.test(trimmed);
+      const m = /^<([a-zA-Z][a-zA-Z0-9:-]*)/.exec(trimmed);
+      const tagName = m ? m[1] : '';
+      const isSelfClosing = trimmed.endsWith('/>');
       if (tagName && !isSelfClosing && !voidElements.has(tagName.toLowerCase())) {
         level += 1;
       }
@@ -82,30 +134,32 @@ function format(html, options = {}) {
 function parse(html) {
   if (typeof html !== 'string') throw new TypeError('html must be a string');
 
-  const tokenRe = /(<!DOCTYPE[^>]*>|<!--[\s\S]*?--!?>|<\/[a-zA-Z][^>]*>|<[^>]*>|[^<]+)/gi;
-  const tokens = html.match(tokenRe) || [];
+  const raw = tokenizeRaw(html);
   const result = [];
 
-  for (const raw of tokens) {
-    const trimmed = raw.trim();
+  for (const token of raw) {
+    const trimmed = token.trim();
     if (!trimmed) continue;
 
     if (/^<!DOCTYPE/i.test(trimmed)) {
       result.push({ type: 'doctype', raw: trimmed });
-    } else if (/^<!--/.test(trimmed)) {
-      const content = trimmed.replace(/^<!--/, '').replace(/--!?>$/, '').trim();
-      result.push({ type: 'comment', raw: trimmed, content });
-    } else if (/^<\//.test(trimmed)) {
-      const name = (trimmed.match(/^<\/([a-zA-Z][a-zA-Z0-9:-]*)/) || [])[1] || '';
+    } else if (trimmed.startsWith('<!--')) {
+      // Strip comment delimiters: <!-- ... --> or <!-- ... --!>
+      const inner = trimmed.slice(4);
+      let content = inner;
+      if (content.endsWith('--!>')) content = content.slice(0, -4);
+      else if (content.endsWith('-->')) content = content.slice(0, -3);
+      result.push({ type: 'comment', raw: trimmed, content: content.trim() });
+    } else if (trimmed.startsWith('</')) {
+      const m = /^<\/([a-zA-Z][a-zA-Z0-9:-]*)/.exec(trimmed);
+      const name = m ? m[1] : '';
       result.push({ type: 'close', raw: trimmed, name });
-    } else if (/\/>$/.test(trimmed)) {
-      const name = (trimmed.match(/^<([a-zA-Z][a-zA-Z0-9:-]*)/) || [])[1] || '';
+    } else if (trimmed.startsWith('<')) {
+      const m = /^<([a-zA-Z][a-zA-Z0-9:-]*)/.exec(trimmed);
+      const name = m ? m[1] : '';
+      const isSelfClosing = trimmed.endsWith('/>');
       const attributes = parseAttributes(trimmed);
-      result.push({ type: 'selfclose', raw: trimmed, name, attributes });
-    } else if (/^<[^/]/.test(trimmed)) {
-      const name = (trimmed.match(/^<([a-zA-Z][a-zA-Z0-9:-]*)/) || [])[1] || '';
-      const attributes = parseAttributes(trimmed);
-      result.push({ type: 'open', raw: trimmed, name, attributes });
+      result.push({ type: isSelfClosing ? 'selfclose' : 'open', raw: trimmed, name, attributes });
     } else {
       result.push({ type: 'text', raw: trimmed, content: trimmed });
     }
@@ -189,3 +243,4 @@ function validate(html) {
 }
 
 module.exports = { parse, format, minify, validate, parseAttributes };
+

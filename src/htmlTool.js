@@ -13,8 +13,8 @@
 function minify(html) {
   if (typeof html !== 'string') throw new TypeError('html must be a string');
   return html
-    .replace(/\s*\n\s*/g, '')
-    .replace(/>\s+</g, '><')
+    .replace(/[ \t]*\n[ \t]*/g, '')
+    .replace(/>[ \t]+</g, '><')
     .trim();
 }
 
@@ -36,8 +36,9 @@ function format(html, options = {}) {
     'link', 'meta', 'param', 'source', 'track', 'wbr',
   ]);
 
-  // Split into tokens: opening tags, closing tags, self-closing, text, comments
-  const tokenRe = /(<!--[\s\S]*?-->|<\/[^>]+>|<[^>]+\/>|<[^>]+>|[^<]+)/g;
+  // Split into tokens: comments, closing tags, any other tags, or text runs
+  // Note: we match all tags as <[^>]*> and infer type from the matched string
+  const tokenRe = /(<!--[\s\S]*?--!?>|<\/[a-zA-Z][^>]*>|<[^>]*>|[^<]+)/g;
   const tokens = html.match(tokenRe) || [];
 
   let level = 0;
@@ -81,7 +82,7 @@ function format(html, options = {}) {
 function parse(html) {
   if (typeof html !== 'string') throw new TypeError('html must be a string');
 
-  const tokenRe = /(<!DOCTYPE[^>]*>|<!--[\s\S]*?-->|<\/[^>]+>|<[^>]+\/>|<[^>]+>|[^<]+)/gi;
+  const tokenRe = /(<!DOCTYPE[^>]*>|<!--[\s\S]*?--!?>|<\/[a-zA-Z][^>]*>|<[^>]*>|[^<]+)/gi;
   const tokens = html.match(tokenRe) || [];
   const result = [];
 
@@ -92,7 +93,7 @@ function parse(html) {
     if (/^<!DOCTYPE/i.test(trimmed)) {
       result.push({ type: 'doctype', raw: trimmed });
     } else if (/^<!--/.test(trimmed)) {
-      const content = trimmed.replace(/^<!--/, '').replace(/-->$/, '').trim();
+      const content = trimmed.replace(/^<!--/, '').replace(/--!?>$/, '').trim();
       result.push({ type: 'comment', raw: trimmed, content });
     } else if (/^<\//.test(trimmed)) {
       const name = (trimmed.match(/^<\/([a-zA-Z][a-zA-Z0-9:-]*)/) || [])[1] || '';

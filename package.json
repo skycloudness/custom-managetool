@@ -1,0 +1,23 @@
+{
+  "name": "custom-managetool",
+  "version": "1.0.0",
+  "description": "HTML management tool: parse, format, minify, and validate HTML",
+  "main": "index.js",
+  "bin": {
+    "html-tool": "./bin/html-tool.js"
+  },
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://localhost:26831/skycloudness/custom-managetool"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "jest": "^30.4.2"
+  }
+}

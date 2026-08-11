@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>カスタム試合管理ツール</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <main class="container">
+    <header>
+      <h1>カスタム試合管理ツール</h1>
+      <p>メンバーはドラッグ＆ドロップで移動できます。</p>
+    </header>
+
+    <div class="tabs">
+      <button class="tab-button active" type="button" data-tab="user-list">ユーザーリスト</button>
+      <button class="tab-button" type="button" data-tab="match-table">対戦表</button>
+    </div>
+
+    <section class="tab-content active" id="user-list-tab">
+      <div class="main-grid">
+        <div class="left-column">
+          <section class="card form-card">
+            <form id="userForm" class="form-row">
+              <div class="input-row pair-row-top">
+                <input id="usernameInput" type="text" placeholder="ユーザー名を入力" autocomplete="username" />
+                <input id="battleTagInput" type="text" placeholder="Battlenet IDを入力" autocomplete="off" />
+                <label class="toggle-switch">
+                  <input id="vcToggle" type="checkbox" />
+                  <span class="switch-slider"></span>
+                  VC可
+                </label>
+              </div>
+              <div class="input-row pair-row-bottom">
+                <select id="rankSelect" aria-label="ランク選択">
+                  <option value="ブロンズ">ブロンズ</option>
+                  <option value="シルバー">シルバー</option>
+                  <option value="ゴールド">ゴールド</option>
+                  <option value="プラチナ">プラチナ</option>
+                  <option value="ダイヤ">ダイヤ</option>
+                  <option value="マスター">マスター</option>
+                  <option value="グランドマスター">グランドマスター</option>
+                  <option value="チャンピオン">チャンピオン</option>
+                </select>
+                <select id="teamSelect" aria-label="追加先チーム">
+                  <option value="team-0">チーム 1</option>
+                  <option value="team-1">チーム 2</option>
+                  <option value="team-2">チーム 3</option>
+                  <option value="reserve">リザーブ</option>
+                </select>
+                <button type="submit">追加</button>
+              </div>
+            </form>
+            <p id="statusMessage" class="message"></p>
+          </section>
+
+          <section class="card">
+            <div class="section-header">
+              <h2>チーム一覧</h2>
+              <button id="addTeamButton" type="button">チーム追加</button>
+            </div>
+            <div id="teamsContainer" class="teams-grid"></div>
+            <p id="emptyState" class="message muted">まだユーザーが登録されていません。</p>
+          </section>
+        </div>
+
+        <section class="card reserve-card">
+          <h2>リザーブ (<span id="reserveCount">0</span>人)</h2>
+          <ul id="reserveList" class="reserve-list"></ul>
+          <p id="reserveEmpty" class="message muted">リザーブにはまだユーザーがいません。</p>
+        </section>
+      </div>
+    </section>
+
+    <section class="tab-content" id="match-table-tab">
+      <section class="card">
+        <div class="section-header">
+          <h2>対戦表</h2>
+          <button id="addMatchButton" type="button">試合を追加</button>
+        </div>
+        <div class="match-table-wrapper">
+          <table class="match-table">
+            <thead>
+              <tr>
+                <th>試合</th>
+                <th>チームA</th>
+                <th>チームB</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="matchTableBody"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+  </main>
+
+  <script src="script.js"></script>
+</body>
+</html>

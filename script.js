@@ -19,12 +19,85 @@ const addMatchButton = document.getElementById("addMatchButton");
 const TEAM_SIZE = 5;
 const INITIAL_TEAMS = 4;
 const INITIAL_RESERVE = 5;
+const STORAGE_KEY = "customMatchToolState";
 const teams = Array.from({ length: INITIAL_TEAMS }, () => Array.from({ length: TEAM_SIZE }, () => null));
 const teamNames = Array.from({ length: INITIAL_TEAMS }, (_, i) => `チーム ${i + 1}`);
 const reserveSlots = Array.from({ length: INITIAL_RESERVE }, () => null);
 let dragSource = null;
 let userTooltip = null;
 let userTooltipTimeout = null;
+
+function normalizeUserEntry(value) {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  if (typeof value === "string") {
+    return { name: value, rank: "ブロンズ", vc: false };
+  }
+
+  if (typeof value === "object") {
+    return {
+      name: value.name || "名無し",
+      rank: value.rank || "ブロンズ",
+      vc: Boolean(value.vc)
+    };
+  }
+
+  return null;
+}
+
+function persistState() {
+  try {
+    const state = {
+      teams: teams.map((team) => team.map((slot) => normalizeUserEntry(slot))),
+      teamNames: [...teamNames],
+      reserveSlots: reserveSlots.map((slot) => normalizeUserEntry(slot)),
+      matchRows: JSON.parse(JSON.stringify(matchRows))
+    };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  } catch (error) {
+    console.warn("State save failed", error);
+  }
+}
+
+function restoreState() {
+  try {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (!saved) {
+      return;
+    }
+
+    const state = JSON.parse(saved);
+    if (!state) {
+      return;
+    }
+
+    if (Array.isArray(state.teamNames) && state.teamNames.length > 0) {
+      teamNames.splice(0, teamNames.length, ...state.teamNames);
+    }
+
+    const restoredTeams = Array.isArray(state.teams) ? state.teams.map((team) => Array.isArray(team) ? team.map((slot) => normalizeUserEntry(slot)) : Array.from({ length: TEAM_SIZE }, () => null)) : [];
+    teams.splice(0, teams.length, ...restoredTeams.map((team) => [...team]));
+
+    if (teams.length === 0) {
+      teams.push(Array.from({ length: TEAM_SIZE }, () => null));
+    }
+
+    const restoredReserve = Array.isArray(state.reserveSlots) ? state.reserveSlots.map((slot) => normalizeUserEntry(slot)) : [];
+    reserveSlots.splice(0, reserveSlots.length, ...restoredReserve);
+
+    if (Array.isArray(state.matchRows)) {
+      matchRows.splice(0, matchRows.length, ...state.matchRows);
+    }
+
+    while (teams.length < teamNames.length) {
+      teams.push(Array.from({ length: TEAM_SIZE }, () => null));
+    }
+  } catch (error) {
+    console.warn("State restore failed", error);
+  }
+}
 
 function getTeamCount() {
   return teams.length;
@@ -672,6 +745,7 @@ function renderList() {
   });
 
   renderMatchTable();
+  persistState();
 }
 
 document.getElementById("addTeamButton").addEventListener("click", () => {
@@ -822,4 +896,5 @@ reserveList.addEventListener("click", (event) => {
   renderList();
 });
 
+restoreState();
 renderList();
